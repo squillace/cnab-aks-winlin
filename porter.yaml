@@ -4,10 +4,10 @@
 # Uncomment out the sections below to take full advantage of what Porter can do!
 
 name: cnab-aks-winlin
-version: 0.1.0
+version: 0.1.1
 description: "A Porter bundle that creates a multiple OS Kubernetes cluster on AKS, with taints applied."
-invocationImage: squillace/cnab-aks-winlin-install:latest
-tag: squillace/cnab-aks-winlin:latest
+invocationImage: squillace/cnab-aks-winlin-install:v0.1.1
+tag: squillace/cnab-aks-winlin:0.1.1
 
 # Uncomment out the line below to use a template Dockerfile for your invocation image
 dockerfile: Dockerfile.tmpl

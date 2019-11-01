@@ -4,6 +4,8 @@ This is an empty bundle that porter has created to get you started!
 
 # Contents
 
+key files '/root/.ssh/id_rsa' and '/root/.ssh/id_rsa.pub' have been generated under ~/.ssh to allow SSH access to the VM. If using machines without permanent storage like Azure Cloud Shell without an attached file share, back up your keys to a safe location
+
 ## porter.yaml
 
 This is the porter manifest. See https://porter.sh/authoring-bundles/ for 
