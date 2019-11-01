@@ -21,35 +21,65 @@ mixins:
 parameters:
   - name: AZURE_RESOURCE_GROUP_UPSERT
     description: "The azure resource group to use or create for the cluster resources."
-    default: winlin
-  - name: CLUSTER_DEPLOYMENT_REGION
+    default: winlin-cnab-test
+  - name: CLUSTER_GROUP_REGION
     description: "The azure resource group to use or create for the cluster resources."
     default: eastus2
   - name: CLUSTER_DEPLOYMENT_REGION
     description: "The azure resource group to use or create for the cluster resources."
     default: eastus2
+  - name: CLUSTER_NAME
+    description: "The name of the AKS cluster."
+    default: cnab-created-cluster
+
+credentials:
+  - name: AZURE_CLIENT_ID
+    description: "The client id for the service principal used to automate the bundle's actions."
+    env: AZURE_CLIENT_ID
+  - name: TENANT_ID_OR_DNS
+    description: "The tenant identity in which the service principal resides."
+    env: TENANT_ID_OR_DNS
+  - name: AZURE_SP_PASSWORD
+    description: "The service principal password that is used to log into Azure inside the bundle."
+    env: AZURE_SP_PASSWORD
+  - name: WINDOWS_USERNAME
+    description: "The username for the Windows nodes. This is typically \"azureuser\", but you can specify valid name."
+    env: WINDOWS_USERNAME
+  - name: WINDOWS_PASSWORD
+    description: "The password for the Windows nodes."
+    env: WINDOWS_PASSWORD
 
 install:
+  - exec: 
+      description: "Logging in to Azure..."
+      command: "bash"
+      flags:
+        c: az login --service-principal --username "{{ bundle.credentials.AZURE_CLIENT_ID}}" --password "{{ bundle.credentials.AZURE_SP_PASSWORD}}" --tenant "{{ bundle.credentials.TENANT_ID_OR_DNS}}" >> /dev/null
+  - exec:
+      description: "Creating the resource group for the AKS cluster....."
+      command: bash
+      flags:
+        c: az group create -n "{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}" -l "{{bundle.parameters.CLUSTER_DEPLOYMENT_REGION}}"
   - exec:
       description: "Creating the AKS cluster....."
       command: bash
       flags:
-        c: echo az group create -n "{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}" -l "{{bundle.parameters.CLUSTER_DEPLOYMENT_REGION}}"
+        c: az aks create -g "{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}" -n "{{bundle.parameters.CLUSTER_NAME}}"  --windows-admin-password "{{bundle.credentials.WINDOWS_PASSWORD}}" --windows-admin-username "{{bundle.credentials.WINDOWS_USERNAME}}" --location "{{bundle.parameters.CLUSTER_DEPLOYMENT_REGION}}" --generate-ssh-keys -c 3 -s Standard_D8_v3 --enable-vmss --nodepool-name linux --network-plugin azure --kubernetes-version 1.15.4 --enable-addons monitoring --debug
   - exec:
-      description: "Creating the AKS cluster....."
       command: bash
+      description: "Aquiring the cluster credentials..."
       flags:
-        c: echo az aks create -n "{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}" -l "{{bundle.parameters.CLUSTER_DEPLOYMENT_REGION}}"
+        c: az aks get-credentials -g "{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}" -n "{{bundle.parameters.CLUSTER_NAME}}"
   - exec:
       description: "Adding the Windows nodes to the cluster..."
       command: bash
       flags:
-        c: echo az aks nodepool add -g "{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}" --cluster-name $CLUSTER_NAME --os-type Windows -n window -c 2 --node-vm-size Standard_D3s_v3
+        c: echo az aks nodepool add -g "{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}" --cluster-name "{{bundle.parameters.CLUSTER_NAME}}" --os-type Windows -n window -c 2 --node-vm-size Standard_D8s_v3
   - exec:
       description: "Adding the taints to the Windows nodes so Linux workloads that don't tolerate Windows nodes are scheduled elsewhere....."
       command: bash
       flags:
-        c: echo $(kubectl get nodes -l beta.kubernetes.io/os=windows -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}' | xargs -I XX kubectl taint nodes XX windows=true:NoSchedule)
+        c: kubectl get nodes -l beta.kubernetes.io/os=windows -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}'  | xargs -I XX kubectl taint nodes XX windows=true:NoSchedule
 
 upgrade:
   - exec:
