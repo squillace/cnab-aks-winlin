@@ -15,7 +15,9 @@ dockerfile: Dockerfile.tmpl
 mixins:
   - exec
   - kubernetes
-  - az
+  - az:
+      extensions:
+      - aks-preview    
 
 
 parameters:
@@ -61,10 +63,10 @@ install:
       flags:
         c: az group create -n "{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}" -l "{{bundle.parameters.CLUSTER_DEPLOYMENT_REGION}}"
   - exec:
-      description: "Creating the AKS cluster....."
+      description: "Creating the AKS cluster......"
       command: bash
       flags:
-        c: az aks create -g "{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}" -n "{{bundle.parameters.CLUSTER_NAME}}"  --windows-admin-password "{{bundle.credentials.WINDOWS_PASSWORD}}" --windows-admin-username "{{bundle.credentials.WINDOWS_USERNAME}}" --location "{{bundle.parameters.CLUSTER_DEPLOYMENT_REGION}}" --generate-ssh-keys -c 3 -s Standard_D8_v3 --enable-vmss --nodepool-name linux --network-plugin azure --kubernetes-version 1.15.4 --enable-addons monitoring --debug
+        c: az aks create --service-principal "{{bundle.credentials.AZURE_CLIENT_ID}}" -g "{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}" -n "{{bundle.parameters.CLUSTER_NAME}}"  --windows-admin-password "{{bundle.credentials.WINDOWS_PASSWORD}}" --windows-admin-username "{{bundle.credentials.WINDOWS_USERNAME}}" --location "{{bundle.parameters.CLUSTER_DEPLOYMENT_REGION}}" --generate-ssh-keys -c 3 -s Standard_D8_v3 --enable-vmss --nodepool-name linux --network-plugin azure --kubernetes-version 1.15.4 --enable-addons monitoring --client-secret "{{bundle.credentials.AZURE_SP_PASSWORD}}" 
   - exec:
       command: bash
       description: "Aquiring the cluster credentials..."
@@ -74,7 +76,7 @@ install:
       description: "Adding the Windows nodes to the cluster..."
       command: bash
       flags:
-        c: echo az aks nodepool add -g "{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}" --cluster-name "{{bundle.parameters.CLUSTER_NAME}}" --os-type Windows -n window -c 2 --node-vm-size Standard_D8s_v3
+        c: az aks nodepool add -g "{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}" --cluster-name "{{bundle.parameters.CLUSTER_NAME}}" --os-type Windows -n window -c 2 --node-vm-size Standard_D8s_v3
   - exec:
       description: "Adding the taints to the Windows nodes so Linux workloads that don't tolerate Windows nodes are scheduled elsewhere....."
       command: bash
@@ -89,11 +91,16 @@ upgrade:
         c: echo You can wait quite a while here if you do this.
 
 uninstall:
+  - exec: 
+      description: "Logging in to Azure..."
+      command: "bash"
+      flags:
+        c: az login --service-principal --username "{{ bundle.credentials.AZURE_CLIENT_ID}}" --password "{{ bundle.credentials.AZURE_SP_PASSWORD}}" --tenant "{{ bundle.credentials.TENANT_ID_OR_DNS}}" >> /dev/null
   - exec:
       description: "Destroying the cluster...."
       command: bash
       flags:
-        c: echo Goodbye World
+        c: az aks delete -g  "{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}" -n "{{bundle.parameters.CLUSTER_NAME}}" --yes --no-wait
 
 
 # See https://porter.sh/authoring-bundles/#dependencies
