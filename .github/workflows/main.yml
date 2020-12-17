@@ -38,7 +38,7 @@ jobs:
         uses: getporter/gh-action@v0.1.1
         with:
           # Specify which version of Porter to install. Any version from v0.18.1-beta.2 onwards is valid. If left blank, will default to latest.
-          porter_version: # optional, default is latest
+          porter_version: v0.30.1 # optional, default is latest
 
       - name: Installing custom mixins
         run: |
