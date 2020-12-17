@@ -39,6 +39,7 @@ jobs:
         with:
           # Specify which version of Porter to install. Any version from v0.18.1-beta.2 onwards is valid. If left blank, will default to latest.
           porter_version: # optional, default is latest
+          
       - name: Installing custom mixins
         run: |
           porter mixin install helm3 --feed-url https://mchorfa.github.com/porter-helm3/atom.xml
