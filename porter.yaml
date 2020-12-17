@@ -97,7 +97,7 @@ install:
         - create
       flags:
         name: "'{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}'"
-        location: "'{{bundle.parametersCLUSTER_GROUP_REGION}}'"
+        location: "'{{bundle.parameters.CLUSTER_GROUP_REGION}}'"
         output: table
     
   - az:
