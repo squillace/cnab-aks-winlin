@@ -27,7 +27,7 @@ jobs:
 
       - name: Enabling porter action
         run: |
-          echo "{ACTIONS_ALLOW_UNSECURE_COMMANDS}={true}" >> $GITHUB_ENV
+          echo "ACTIONS_ALLOW_UNSECURE_COMMANDS=true" >> $GITHUB_ENV
         
       - name: Login to GitHub Packages OCI Registry
         uses: docker/login-action@v1
