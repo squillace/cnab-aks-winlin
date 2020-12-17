@@ -6,7 +6,7 @@
 name: cnab-aks-winlin
 version: 0.3
 description: "A Porter bundle that creates a multiple OS Kubernetes cluster on AKS, with taints applied The storage.aks.enable-nfs action installs NFS for use in the cluster. The storage.aks.enable-azurefiles installs Azure Files support in the cluster."
-tag: squillace/cnab-aks-winlin
+tag: ghcr.io/squillace/cnab-aks-winlin/aks
 
 # Uncomment out the line below to use a template Dockerfile for your invocation image
 dockerfile: Dockerfile.tmpl
