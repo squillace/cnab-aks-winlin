@@ -30,7 +30,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
-          password: ${{ GHCR_SECRET }}
+          password: ${{ secrets.GHCR_SECRET }}
 
       - name: Setup Porter
         # You may pin to the exact commit or the version.
