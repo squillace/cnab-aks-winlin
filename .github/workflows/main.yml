@@ -51,7 +51,7 @@ jobs:
 
       - name: Build the bundle
         run: |
-          porter build -debug
+          porter build --debug
       - name: publish the bundle
         run: |
-          porter build -debug
+          porter publish
