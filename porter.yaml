@@ -4,7 +4,7 @@
 # Uncomment out the sections below to take full advantage of what Porter can do!
 
 name: cnab-aks-winlin
-version: 0.2
+version: 0.3
 description: "A Porter bundle that creates a multiple OS Kubernetes cluster on AKS, with taints applied The storage.aks.enable-nfs action installs NFS for use in the cluster. The storage.aks.enable-azurefiles installs Azure Files support in the cluster."
 tag: squillace/cnab-aks-winlin
 
@@ -18,6 +18,12 @@ mixins:
   - az:
       extensions:
       - aks-preview    
+  - helm3:
+      clientVersion: v3.3.4
+      repositories:
+        # Add the official stable repository
+        stable:
+          url: "https://charts.helm.sh/stable"
 
 
 parameters:
@@ -89,19 +95,28 @@ install:
       flags:
         subscription: "{{ bundle.credentials.AZURE_SUBSCRIPTION_ID}}"
 
-  - az:
-      description: "Creating the Azure resource group if it doesn't exist...."
-      suppress-output: true
+  - exec:
+      command: bash
+      description: "Creating or using the Azure resource group...."
       arguments:
-        - group
-        - create
-      flags:
-        name: "'{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}'"
-        location: "'{{bundle.parameters.CLUSTER_GROUP_REGION}}'"
-        output: table
+        - ./upsertGroup.sh
+        - "{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}"
+        - "{{bundle.parameters.CLUSTER_GROUP_REGION}}"
+
+#  - az:
+#      description: "Creating the Azure resource group if it doesn't exist...."
+#      suppress-output: true
+#      arguments:
+#        - group
+#        - create
+#      flags:
+#        name: "'{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}'"
+#        location: "'{{bundle.parameters.CLUSTER_GROUP_REGION}}'"
+#        output: table
     
   - az:
       description: "Creating the AKS cluster...."
+      suppress-output: true
       arguments: 
         - aks
         - create
@@ -110,15 +125,15 @@ install:
         resource-group: "'{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}'"
         name: "'{{bundle.parameters.CLUSTER_NAME}}'"
         windows-admin-password: "'{{bundle.credentials.WINDOWS_PASSWORD}}'"
-        windows-admin-username: "'bundle.credentials.WINDOWS_USERNAME'"
+        windows-admin-username: "'{{bundle.credentials.WINDOWS_USERNAME}}'"
         location: "'{{bundle.parameters.CLUSTER_DEPLOYMENT_REGION}}'"
         generate-ssh-keys: "" # is this good practice any longer?
         node-count: "'{{bundle.parameters.NODE_COUNT}}'"
         node-vm-size: "'Standard_D8_v3'"
-        enable-vmss: true
+        enable-vmss: ""
         nodepool-name: linux
         network-plugin: azure
-        kubernetes-version: 1.17.3
+        kubernetes-version: 1.19.3
         enable-addons: "'monitoring'"
         client-secret: "'{{bundle.credentials.AZURE_SP_PASSWORD}}'" 
 
@@ -139,29 +154,33 @@ install:
 #        c: kubectl get nodes -l beta.kubernetes.io/os=windows -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}'  | xargs -I XX kubectl taint nodes XX windows=true:NoSchedule
 
 storage.aks.enable-nfs:
-  - exec: 
-      description: "Logging in to Azure..."
-      command: "bash"
-      flags:
-        c: "'az login --service-principal --username {{ bundle.credentials.AZURE_CLIENT_ID}} --password {{ bundle.credentials.AZURE_SP_PASSWORD}} --tenant {{ bundle.credentials.TENANT_ID_OR_DNS}} >> /dev/null'"
-  - exec:
-      command: bash
-      description: "Aquiring the cluster credentials..."
-      flags:
-        c: "'az aks get-credentials -g {{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}} -n {{bundle.parameters.CLUSTER_NAME}}'"
-  - helm3:
-      description: "Getting the Helm chart for NFS support."
+  - az:
+      description: "Logging into Azure..."  
       arguments:
-        - repo
-        - add 
-        - stable 
-        - https://kubernetes-charts.storage.googleapis.com/
-
-  - helm3:
-      description: "Updating the stable repository."
+        - login
+      suppress-output: true
+      flags:
+        service-principal:
+        username: "'{{bundle.credentials.AZURE_CLIENT_ID}}'"
+        password: "'{{bundle.credentials.AZURE_SP_PASSWORD}}'"
+        tenant: "'{{bundle.credentials.TENANT_ID_OR_DNS}}'"
+        output: table
+  - az: 
+      description: "Setting the Azure subscription...."
+      suppress-output: true
+      arguments: 
+        - "account" 
+        - "set" 
+      flags:
+        subscription: "{{ bundle.credentials.AZURE_SUBSCRIPTION_ID}}"
+  - az: 
+      description: "Acquiring the cluster credentials...."
       arguments:
-        - repo
-        - update
+        - aks
+        - get-credentials
+      flags:
+        resource-group: "'{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}'"
+        name: "'{{bundle.parameters.CLUSTER_NAME}}'"
 
   - helm3: 
       description: "Installing the NFS storage class in the cluster."
@@ -176,16 +195,33 @@ storage.aks.enable-nfs:
         - persistence-enabled=true
 
 storage.aks.enable-azurefiles:
-  - exec: 
-      description: "Logging in to Azure..."
-      command: "bash"
+  - az:
+      description: "Logging into Azure..."  
+      arguments:
+        - login
+      suppress-output: true
       flags:
-        c: "'az login --service-principal --username {{ bundle.credentials.AZURE_CLIENT_ID}} --password {{ bundle.credentials.AZURE_SP_PASSWORD}} --tenant {{ bundle.credentials.TENANT_ID_OR_DNS}} >> /dev/null'"
-  - exec:
-      command: bash
-      description: "Aquiring the cluster credentials..."
+        service-principal:
+        username: "'{{bundle.credentials.AZURE_CLIENT_ID}}'"
+        password: "'{{bundle.credentials.AZURE_SP_PASSWORD}}'"
+        tenant: "'{{bundle.credentials.TENANT_ID_OR_DNS}}'"
+        output: table
+  - az: 
+      description: "Setting the Azure subscription...."
+      suppress-output: true
+      arguments: 
+        - "account" 
+        - "set" 
       flags:
-        c: "'az aks get-credentials -g {{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}} -n {{bundle.parameters.CLUSTER_NAME}}'"
+        subscription: "{{ bundle.credentials.AZURE_SUBSCRIPTION_ID}}"
+  - az: 
+      description: "Acquiring the cluster credentials...."
+      arguments:
+        - aks
+        - get-credentials
+      flags:
+        resource-group: "'{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}'"
+        name: "'{{bundle.parameters.CLUSTER_NAME}}'"
   - exec:
       command: bash
       description: "Not ready to implement https://docs.microsoft.com/en-us/azure/aks/azure-files-volume yet."
@@ -199,16 +235,35 @@ upgrade:
         c: "'echo You can wait quite a while here if you do this.'"
 
 uninstall:
-  - exec: 
-      description: "Logging in to Azure..."
-      command: "bash"
+  - az:
+      description: "Logging into Azure..."  
+      arguments:
+        - login
+      suppress-output: true
       flags:
-        c: "'az login --service-principal --username {{ bundle.credentials.AZURE_CLIENT_ID}} --password {{ bundle.credentials.AZURE_SP_PASSWORD}} --tenant {{ bundle.credentials.TENANT_ID_OR_DNS}} >> /dev/null'"
-  - exec:
+        service-principal:
+        username: "'{{bundle.credentials.AZURE_CLIENT_ID}}'"
+        password: "'{{bundle.credentials.AZURE_SP_PASSWORD}}'"
+        tenant: "'{{bundle.credentials.TENANT_ID_OR_DNS}}'"
+        output: table
+  - az: 
+      description: "Setting the Azure subscription...."
+      suppress-output: true
+      arguments: 
+        - "account" 
+        - "set" 
+      flags:
+        subscription: "{{ bundle.credentials.AZURE_SUBSCRIPTION_ID}}"
+  - az: 
       description: "Destroying the cluster...."
-      command: bash
+      arguments:
+        - aks
+        - delete
       flags:
-        c: "'az aks delete -g  {{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}} -n {{bundle.parameters.CLUSTER_NAME}} --yes --no-wait'"
+        resource-group: "'{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}'"
+        name: "'{{bundle.parameters.CLUSTER_NAME}}'"
+        yes: ""
+        no-wait: ""
 
 
 # See https://porter.sh/authoring-bundles/#dependencies
