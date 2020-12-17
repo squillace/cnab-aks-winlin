@@ -4,10 +4,9 @@
 # Uncomment out the sections below to take full advantage of what Porter can do!
 
 name: cnab-aks-winlin
-version: 0.1.2
+version: 0.2
 description: "A Porter bundle that creates a multiple OS Kubernetes cluster on AKS, with taints applied The storage.aks.enable-nfs action installs NFS for use in the cluster. The storage.aks.enable-azurefiles installs Azure Files support in the cluster."
-invocationImage: squillace/cnab-aks-winlin-install:v0.1.2
-tag: squillace/cnab-aks-winlin:0.1.2
+tag: squillace/cnab-aks-winlin
 
 # Uncomment out the line below to use a template Dockerfile for your invocation image
 dockerfile: Dockerfile.tmpl
@@ -34,6 +33,9 @@ parameters:
   - name: CLUSTER_NAME
     description: "The name of the AKS cluster."
     default: cnab-cluster
+  - name: NODE_COUNT
+    description: "The number of nodes in the cluster."
+    default: 3
 
 credentials:
   - name: AZURE_CLIENT_ID
@@ -51,6 +53,9 @@ credentials:
   - name: WINDOWS_PASSWORD
     description: "The password for the Windows nodes."
     env: WINDOWS_PASSWORD
+  - name: AZURE_SUBSCRIPTION_ID
+    description: "The Azure subscription into which to deploy."
+    env: AZURE_SUB_ID
 
 customActions:
   storage.aks.enable-nfs:
@@ -63,52 +68,87 @@ customActions:
     modifies: true   
 
 install:
-  - exec: 
-      description: "Logging in to Azure..."
-      command: "bash"
-      flags:
-        c: az login --service-principal --username "{{ bundle.credentials.AZURE_CLIENT_ID}}" --password "{{ bundle.credentials.AZURE_SP_PASSWORD}}" --tenant "{{ bundle.credentials.TENANT_ID_OR_DNS}}" >> /dev/null
 
-  - exec:
-      command: bash
-      description: "Creating or using the Azure resource group...."
+  - az:
+      description: "Logging into Azure..."  
       arguments:
-        - ./upsertGroup.sh
-        - "{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}"
-        - "{{bundle.parameters.CLUSTER_GROUP_REGION}}"
+        - login
+      suppress-output: true
+      flags:
+        service-principal:
+        username: "'{{bundle.credentials.AZURE_CLIENT_ID}}'"
+        password: "'{{bundle.credentials.AZURE_SP_PASSWORD}}'"
+        tenant: "'{{bundle.credentials.TENANT_ID_OR_DNS}}'"
+        output: table
+  - az: 
+      description: "Setting the Azure subscription...."
+      suppress-output: true
+      arguments: 
+        - "account" 
+        - "set" 
+      flags:
+        subscription: "{{ bundle.credentials.AZURE_SUBSCRIPTION_ID}}"
 
-  - exec:
-      description: "Creating the AKS cluster......"
-      command: bash
+  - az:
+      description: "Creating the Azure resource group if it doesn't exist...."
+      suppress-output: true
+      arguments:
+        - group
+        - create
       flags:
-        c: az aks create --service-principal "{{bundle.credentials.AZURE_CLIENT_ID}}" -g "{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}" -n "{{bundle.parameters.CLUSTER_NAME}}"  --windows-admin-password "{{bundle.credentials.WINDOWS_PASSWORD}}" --windows-admin-username "{{bundle.credentials.WINDOWS_USERNAME}}" --location "{{bundle.parameters.CLUSTER_DEPLOYMENT_REGION}}" --generate-ssh-keys -c 3 -s Standard_D8_v3 --enable-vmss --nodepool-name linux --network-plugin azure --kubernetes-version 1.15.4 --enable-addons monitoring --client-secret "{{bundle.credentials.AZURE_SP_PASSWORD}}" 
-  - exec:
-      command: bash
-      description: "Aquiring the cluster credentials..."
-      flags:
-        c: az aks get-credentials -g "{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}" -n "{{bundle.parameters.CLUSTER_NAME}}"
-  - exec:
-      description: "Adding the Windows nodes to the cluster..."
-      command: bash
-      flags:
-        c: az aks nodepool add -g "{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}" --cluster-name "{{bundle.parameters.CLUSTER_NAME}}" --os-type Windows -n window -c 2 --node-vm-size Standard_D8s_v3
-  - exec:
-      description: "Adding the taints to the Windows nodes so Linux workloads that don't tolerate Windows nodes are scheduled elsewhere....."
-      command: bash
-      flags:
-        c: kubectl get nodes -l beta.kubernetes.io/os=windows -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}'  | xargs -I XX kubectl taint nodes XX windows=true:NoSchedule
+        name: "'{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}'"
+        location: "'{{bundle.parametersCLUSTER_GROUP_REGION}}'"
+        output: table
+    
+  - az:
+      description: "Creating the AKS cluster...."
+      arguments: 
+        - aks
+        - create
+      flags: 
+        service-principal: "'{{bundle.credentials.AZURE_CLIENT_ID}}'"
+        resource-group: "'{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}'"
+        name: "'{{bundle.parameters.CLUSTER_NAME}}'"
+        windows-admin-password: "'{{bundle.credentials.WINDOWS_PASSWORD}}'"
+        windows-admin-username: "'bundle.credentials.WINDOWS_USERNAME'"
+        location: "'{{bundle.parameters.CLUSTER_DEPLOYMENT_REGION}}'"
+        generate-ssh-keys: "" # is this good practice any longer?
+        node-count: "'{{bundle.parameters.NODE_COUNT}}'"
+        node-vm-size: "'Standard_D8_v3'"
+        enable-vmss: true
+        nodepool-name: linux
+        network-plugin: azure
+        kubernetes-version: 1.17.3
+        enable-addons: "'monitoring'"
+        client-secret: "'{{bundle.credentials.AZURE_SP_PASSWORD}}'" 
+
+#  - exec:
+#      command: bash
+#      description: "Aquiring the cluster credentials..."
+#      flags:
+#        c: az aks get-credentials -g "{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}" -n "{{bundle.parameters.CLUSTER_NAME}}"
+#  - exec:
+#      description: "Adding the Windows nodes to the cluster..."
+#      command: bash
+#      flags:
+#        c: az aks nodepool add -g "{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}" --cluster-name "{{bundle.parameters.CLUSTER_NAME}}" --os-type Windows -n window -c 2 --node-vm-size Standard_D8s_v3
+#  - exec:
+#      description: "Adding the taints to the Windows nodes so Linux workloads that don't tolerate Windows nodes are scheduled elsewhere....."
+#      command: bash
+#      flags:
+#        c: kubectl get nodes -l beta.kubernetes.io/os=windows -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}'  | xargs -I XX kubectl taint nodes XX windows=true:NoSchedule
 
 storage.aks.enable-nfs:
   - exec: 
       description: "Logging in to Azure..."
       command: "bash"
       flags:
-        c: az login --service-principal --username "{{ bundle.credentials.AZURE_CLIENT_ID}}" --password "{{ bundle.credentials.AZURE_SP_PASSWORD}}" --tenant "{{ bundle.credentials.TENANT_ID_OR_DNS}}" >> /dev/null
+        c: "'az login --service-principal --username {{ bundle.credentials.AZURE_CLIENT_ID}} --password {{ bundle.credentials.AZURE_SP_PASSWORD}} --tenant {{ bundle.credentials.TENANT_ID_OR_DNS}} >> /dev/null'"
   - exec:
       command: bash
       description: "Aquiring the cluster credentials..."
       flags:
-        c: az aks get-credentials -g "{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}" -n "{{bundle.parameters.CLUSTER_NAME}}"
+        c: "'az aks get-credentials -g {{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}} -n {{bundle.parameters.CLUSTER_NAME}}'"
   - helm3:
       description: "Getting the Helm chart for NFS support."
       arguments:
@@ -140,35 +180,35 @@ storage.aks.enable-azurefiles:
       description: "Logging in to Azure..."
       command: "bash"
       flags:
-        c: az login --service-principal --username "{{ bundle.credentials.AZURE_CLIENT_ID}}" --password "{{ bundle.credentials.AZURE_SP_PASSWORD}}" --tenant "{{ bundle.credentials.TENANT_ID_OR_DNS}}" >> /dev/null
+        c: "'az login --service-principal --username {{ bundle.credentials.AZURE_CLIENT_ID}} --password {{ bundle.credentials.AZURE_SP_PASSWORD}} --tenant {{ bundle.credentials.TENANT_ID_OR_DNS}} >> /dev/null'"
   - exec:
       command: bash
       description: "Aquiring the cluster credentials..."
       flags:
-        c: az aks get-credentials -g "{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}" -n "{{bundle.parameters.CLUSTER_NAME}}"
+        c: "'az aks get-credentials -g {{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}} -n {{bundle.parameters.CLUSTER_NAME}}'"
   - exec:
       command: bash
       description: "Not ready to implement https://docs.microsoft.com/en-us/azure/aks/azure-files-volume yet."
       flags:
-        c: echo "TODO -- implement https://docs.microsoft.com/en-us/azure/aks/azure-files-volume."
+        c: "'echo TODO -- implement https://docs.microsoft.com/en-us/azure/aks/azure-files-volume.'"
 upgrade:
   - exec:
       description: "Not supported. Clusters are cattle, not pets, unless you're in production. And even then, they should be pets."
       command: bash
       flags:
-        c: echo You can wait quite a while here if you do this.
+        c: "'echo You can wait quite a while here if you do this.'"
 
 uninstall:
   - exec: 
       description: "Logging in to Azure..."
       command: "bash"
       flags:
-        c: az login --service-principal --username "{{ bundle.credentials.AZURE_CLIENT_ID}}" --password "{{ bundle.credentials.AZURE_SP_PASSWORD}}" --tenant "{{ bundle.credentials.TENANT_ID_OR_DNS}}" >> /dev/null
+        c: "'az login --service-principal --username {{ bundle.credentials.AZURE_CLIENT_ID}} --password {{ bundle.credentials.AZURE_SP_PASSWORD}} --tenant {{ bundle.credentials.TENANT_ID_OR_DNS}} >> /dev/null'"
   - exec:
       description: "Destroying the cluster...."
       command: bash
       flags:
-        c: az aks delete -g  "{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}" -n "{{bundle.parameters.CLUSTER_NAME}}" --yes --no-wait
+        c: "'az aks delete -g  {{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}} -n {{bundle.parameters.CLUSTER_NAME}} --yes --no-wait'"
 
 
 # See https://porter.sh/authoring-bundles/#dependencies
