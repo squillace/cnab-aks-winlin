@@ -3,10 +3,10 @@
 # See https://porter.sh/authoring-bundles for documentation on how to configure your bundle
 # Uncomment out the sections below to take full advantage of what Porter can do!
 
-name: cnab-aks-winlin
+name: aks
 version: 0.4.0
 description: "A Porter bundle that creates a multiple OS Kubernetes cluster on AKS, with taints applied The storage.aks.enable-nfs action installs NFS for use in the cluster. The storage.aks.enable-azurefiles installs Azure Files support in the cluster."
-tag: ghcr.io/squillace/cnab-aks-winlin/aks
+registry: ghcr.io/squillace/cnab-aks-winlin
 
 # Uncomment out the line below to use a template Dockerfile for your invocation image
 dockerfile: Dockerfile.tmpl
@@ -28,18 +28,23 @@ mixins:
 parameters:
   - name: AZURE_RESOURCE_GROUP_UPSERT
     description: "The azure resource group to use or create for the cluster resources."
+    type: string
     default: winlin
   - name: CLUSTER_GROUP_REGION
     description: "The azure resource group to use or create for the cluster resources."
+    type: string
     default: eastus2
   - name: CLUSTER_DEPLOYMENT_REGION
     description: "The azure resource group to use or create for the cluster resources."
+    type: string
     default: eastus2
   - name: CLUSTER_NAME
     description: "The name of the AKS cluster."
+    type: string
     default: cnab-cluster
   - name: NODE_COUNT
     description: "The number of nodes in the cluster."
+    type: string
     default: 3
 
 credentials:
