@@ -4,7 +4,7 @@
 # Uncomment out the sections below to take full advantage of what Porter can do!
 
 name: aks
-version: 0.4.2
+version: 0.4.3
 description: "A Porter bundle that creates a multiple OS Kubernetes cluster on AKS, with taints applied The storage.aks.enable-nfs action installs NFS for use in the cluster. The storage.aks.enable-azurefiles installs Azure Files support in the cluster."
 registry: ghcr.io/squillace/cnab-aks-winlin
 
@@ -289,11 +289,13 @@ uninstall:
       arguments:
         - aks
         - delete
+        - "--yes"
+        - "--no-wait"
       flags:
         resource-group: "'{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}'"
         name: "'{{bundle.parameters.CLUSTER_NAME}}'"
-        yes: ""
-        no-wait: ""
+#        yes: ""
+#        no-wait: ""
 
 
 # See https://porter.sh/authoring-bundles/#dependencies
