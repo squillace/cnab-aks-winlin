@@ -4,7 +4,7 @@
 # Uncomment out the sections below to take full advantage of what Porter can do!
 
 name: aks
-version: 0.4.3
+version: 0.5.0
 description: "A Porter bundle that creates a multiple OS Kubernetes cluster on AKS, with taints applied The storage.aks.enable-nfs action installs NFS for use in the cluster. The storage.aks.enable-azurefiles installs Azure Files support in the cluster."
 registry: ghcr.io/squillace/cnab-aks-winlin
 
@@ -126,14 +126,16 @@ install:
         location: "'{{bundle.parameters.CLUSTER_DEPLOYMENT_REGION}}'"
         generate-ssh-keys: "" # is this good practice any longer?
         node-count: "'{{bundle.parameters.NODE_COUNT}}'"
-        node-vm-size: "'Standard_D8_v3'"
+        node-vm-size: "'Standard_DS4_v2'"
+#        node-osdisk-size: "30"
 #        enable-vmss: ""
+        node-osdisk-type: Ephemeral
         nodepool-name: linux
         network-plugin: azure
         kubernetes-version: 1.19.3
         enable-addons: "'monitoring'"
         client-secret: "'{{bundle.credentials.AZURE_SP_PASSWORD}}'" 
-#        debug: ""
+        debug: ""
 aks.add-windows:
   - az:
       description: "Logging into Azure..."  
