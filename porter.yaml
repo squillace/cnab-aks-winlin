@@ -4,7 +4,7 @@
 # Uncomment out the sections below to take full advantage of what Porter can do!
 
 name: aks
-version: 0.5.0
+version: 0.5.1
 description: "A Porter bundle that creates a multiple OS Kubernetes cluster on AKS, with taints applied The storage.aks.enable-nfs action installs NFS for use in the cluster. The storage.aks.enable-azurefiles installs Azure Files support in the cluster."
 registry: ghcr.io/squillace/cnab-aks-winlin
 
@@ -117,6 +117,7 @@ install:
       arguments: 
         - aks
         - create
+        - "--debug"
       flags: 
         service-principal: "'{{bundle.credentials.AZURE_CLIENT_ID}}'"
         resource-group: "'{{bundle.parameters.AZURE_RESOURCE_GROUP_UPSERT}}'"
@@ -129,10 +130,10 @@ install:
         node-vm-size: "'Standard_DS4_v2'"
 #        node-osdisk-size: "30"
 #        enable-vmss: ""
-        node-osdisk-type: Ephemeral
+#        node-osdisk-type: Ephemeral
         nodepool-name: linux
         network-plugin: azure
-        kubernetes-version: 1.19.3
+        kubernetes-version: 1.19.7
         enable-addons: "'monitoring'"
         client-secret: "'{{bundle.credentials.AZURE_SP_PASSWORD}}'" 
         debug: ""
